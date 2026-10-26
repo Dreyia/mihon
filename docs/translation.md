@@ -160,6 +160,9 @@ Marked `ASSUMPTION` in code comments as well:
   outputs). A raw-export fallback (logits + normalised boxes) is implemented but untested.
 - PP-OCR input channel order RGB (the reference port uses RGB; PaddleOCR's own pipeline decodes BGR).
 - `LineSegmenter` heuristics (vertical ratio 1.3, gap merging) are untested on real pages.
-- `<unk>` id 1 is used for the opus-mt tokenizer even though its `tokenizer.json` says `unk_id: 2`.
+- ~~`<unk>` id 1 is used for the opus-mt tokenizer even though its `tokenizer.json` says `unk_id: 2`.~~
+  **Verified 2026-10-27** against `onnx-community/opus-mt-ja-en` and `opus-mt-zh-en` `tokenizer.json`:
+  `added_tokens` and `model.vocab[1]` are both `<unk>`; `model.unk_id: 2` points at `.` (ja-en) and
+  `,` (zh-en). Id 1 is correct, no code change.
 - Automatic page layout thresholds (≥ 600 dp wide and width/height ≥ 0.8 counts as an unfolded
   screen) were chosen from published screen sizes, not measured on the Find N6.
