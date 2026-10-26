@@ -54,6 +54,18 @@ Reader hook: `PagerPageHolder.process()` / `WebtoonPageHolder.process()` call
 `ReaderPageTranslation.translate()` before the existing split/rotate steps when
 `ViewerConfig.translatePages` is on. Failures fall back to the original page and are toasted.
 
+### Translate after download
+
+**Settings › Translation › Translate chapters after download.** When a chapter finishes downloading,
+`Downloader` enqueues `ChapterTranslationJob` (a WorkManager foreground job, one chapter at a time).
+The job reads the downloaded pages through the same `DownloadPageLoader` the reader uses (folder or
+CBZ) and runs each page through `TranslationManager`, which stores the result in the page cache.
+A progress notification ("Translating downloaded chapter — page n of m") is shown while it runs and
+a "Chapter translated — tap to read" notification opens the chapter when it is done; failures (for
+example missing model packs) show an error notification. Opening the chapter with the Translate
+toggle on is then instant and works offline. Translated pages live in the cache (1 GB cap, oldest
+evicted), the downloaded originals are never modified.
+
 ## Setting up the server engine (optional)
 
 On the PC (any OS with Docker; see the [project README](https://github.com/zyddnys/manga-image-translator#docker)):
@@ -103,6 +115,16 @@ Chinese manhua in the library.
 13. **Memory** – Translate 20+ pages in a row and check no OOM crash (watch logcat for
     `Page translation failed`).
 14. **Clear cache** – Settings › Translation › Clear translated pages. Expect: size resets to 0 B.
+15. **Translate after download** – Enable "Translate chapters after download", download a chapter.
+    Expect: the download notification completes, then a "Translating downloaded chapter" notification
+    with a page counter, then "Chapter translated — tap to read". Tapping opens the chapter; with the
+    Translate toggle on every page shows instantly. Repeat with "Save as CBZ" enabled in Downloads.
+16. **Translate after download, queueing** – Download three chapters at once. Expect: they are
+    translated one after another (single progress notification), not in parallel.
+17. **Translate after download, airplane mode** – With on-device engine and packs installed, turn on
+    airplane mode after the download completes. Expect: translation still finishes.
+18. **Translate after download, missing packs** – Delete a required pack, download a chapter. Expect:
+    error notification "Could not translate …" with the models-missing message.
 
 ## Assumptions to verify on a device
 

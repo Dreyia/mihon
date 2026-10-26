@@ -15,6 +15,9 @@ class TranslationPreferences(
     /** Reader toggle: translate pages while reading. */
     val enabled: Preference<Boolean> = preferenceStore.getBoolean("translation_enabled", false)
 
+    /** Pre-translate every page of a chapter right after it is downloaded. */
+    val translateOnDownload: Preference<Boolean> = preferenceStore.getBoolean("translation_on_download", false)
+
     val pageEngine: Preference<PageEngine> = preferenceStore.getEnum("translation_page_engine", PageEngine.ON_DEVICE)
 
     val sourceLanguage: Preference<SourceLanguage> =

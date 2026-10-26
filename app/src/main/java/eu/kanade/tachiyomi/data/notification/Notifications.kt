@@ -41,6 +41,12 @@ object Notifications {
     const val ID_DOWNLOAD_CHAPTER_ERROR = -202
 
     /**
+     * Notification ids for chapter page translation (shares the downloader channels).
+     */
+    const val ID_TRANSLATION_PROGRESS = -801
+    const val ID_TRANSLATION_COMPLETE = -802
+
+    /**
      * Notification channel and ids used by the library updater.
      */
     const val CHANNEL_NEW_CHAPTERS = "new_chapters_channel"

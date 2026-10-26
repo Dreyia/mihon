@@ -40,6 +40,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import logcat.LogPriority
 import mihon.core.archive.ZipWriter
+import mihon.feature.translation.ChapterTranslationJob
+import mihon.feature.translation.TranslationPreferences
 import nl.adaptivity.xmlutil.serialization.XML
 import okhttp3.Response
 import tachiyomi.core.common.i18n.stringResource
@@ -78,6 +80,7 @@ class Downloader(
     private val xml: XML = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
     private val getTracks: GetTracks = Injekt.get(),
+    private val translationPreferences: TranslationPreferences = Injekt.get(),
 ) {
 
     /**
@@ -412,6 +415,15 @@ class Downloader(
             DiskUtil.createNoMediaFile(tmpDir, context)
 
             download.status = Download.State.DOWNLOADED
+
+            if (translationPreferences.translateOnDownload.get()) {
+                ChapterTranslationJob.start(
+                    context = context,
+                    mangaId = download.manga.id,
+                    chapterId = download.chapter.id,
+                    title = "${download.manga.title} · ${download.chapter.name}",
+                )
+            }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             // If the page list threw, it will resume here

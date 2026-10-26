@@ -63,6 +63,11 @@ object SettingsTranslationScreen : SearchableSettings {
                 title = stringResource(MR.strings.pref_translate_pages),
                 subtitle = stringResource(MR.strings.pref_translate_pages_summary),
             ),
+            Preference.PreferenceItem.SwitchPreference(
+                preference = prefs.translateOnDownload,
+                title = stringResource(MR.strings.pref_translate_on_download),
+                subtitle = stringResource(MR.strings.pref_translate_on_download_summary),
+            ),
             Preference.PreferenceItem.ListPreference(
                 preference = prefs.pageEngine,
                 entries = mapOf(

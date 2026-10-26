@@ -1069,6 +1069,12 @@
     <string name="action_translate">Translate</string>
     <string name="pref_translate_pages">Translate pages while reading</string>
     <string name="pref_translate_pages_summary">Detects speech bubbles, translates the text and redraws it on the page</string>
+    <string name="pref_translate_on_download">Translate chapters after download</string>
+    <string name="pref_translate_on_download_summary">Pages are translated right after a chapter finishes downloading, so they open instantly and offline. A notification shows the progress.</string>
+    <string name="translation_notification_translating">Translating downloaded chapter</string>
+    <string name="translation_notification_progress">%1$s — page %2$d of %3$d</string>
+    <string name="translation_notification_done">Chapter translated — tap to read</string>
+    <string name="translation_notification_failed">Could not translate %1$s</string>
     <string name="pref_translation_page_engine">Translation engine</string>
     <string name="translation_engine_on_device">On this device</string>
     <string name="translation_engine_server">manga-image-translator server</string>

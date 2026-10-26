@@ -76,7 +76,8 @@ class PageTranslationCache(
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
     companion object {
-        const val DEFAULT_MAX_BYTES = 512L * 1024 * 1024
+        /** ~1 GB: roughly 2000 translated pages, so pre-translated downloads are not evicted quickly. */
+        const val DEFAULT_MAX_BYTES = 1024L * 1024 * 1024
         private const val TRIM_TARGET = 0.9
     }
 }
