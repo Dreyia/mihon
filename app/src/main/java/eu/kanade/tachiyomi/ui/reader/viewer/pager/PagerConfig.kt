@@ -56,11 +56,13 @@ class PagerConfig(
     var shiftDoublePage = readerPreferences.shiftDoublePages.get()
 
     var doublePages =
-        readerPreferences.pageLayout.get() == PageLayout.DOUBLE_PAGES && !readerPreferences.dualPageSplitPaged.get()
+        PageLayout.DOUBLE_PAGES_ENABLED &&
+            readerPreferences.pageLayout.get() == PageLayout.DOUBLE_PAGES &&
+            !readerPreferences.dualPageSplitPaged.get()
         set(value) {
             // Double-page (merge) and dual-page-split are mutually exclusive; clamp here so every writer
             // — including the AUTOMATIC/orientation path — can never enable both at once.
-            field = value && !dualPageSplit
+            field = PageLayout.DOUBLE_PAGES_ENABLED && value && !dualPageSplit
         }
 
     var invertDoublePages = false
@@ -215,5 +217,11 @@ class PagerConfig(
         const val SINGLE_PAGE = 0
         const val DOUBLE_PAGES = 1
         const val AUTOMATIC = 2
+
+        /**
+         * Off while evaluating the high quality renderer's dual page view (upstream #3388). Flip back to
+         * `true` to restore double pages in this viewer; nothing else needs to change.
+         */
+        const val DOUBLE_PAGES_ENABLED = false
     }
 }

@@ -117,20 +117,27 @@ private fun ColumnScope.PagerViewerSettings(viewModel: ReaderSettingsViewModel) 
         pref = viewModel.preferences.navigateToPan,
     )
 
-    val pageLayout by viewModel.preferences.pageLayout.collectAsState()
-    SettingsChipRow(MR.strings.page_layout) {
-        ReaderPreferences.PageLayouts.mapIndexed { index, labelRes ->
-            FilterChip(
-                selected = pageLayout == index,
-                onClick = {
-                    viewModel.preferences.pageLayout.set(index)
-                    // Double-page (merge) and split-wide-pages are mutually exclusive.
-                    if (index != PagerConfig.PageLayout.SINGLE_PAGE) {
-                        viewModel.preferences.dualPageSplitPaged.set(false)
-                    }
-                },
-                label = { Text(stringResource(labelRes)) },
-            )
+    val savedPageLayout by viewModel.preferences.pageLayout.collectAsState()
+    val pageLayout = if (PagerConfig.PageLayout.DOUBLE_PAGES_ENABLED) {
+        savedPageLayout
+    } else {
+        PagerConfig.PageLayout.SINGLE_PAGE
+    }
+    if (PagerConfig.PageLayout.DOUBLE_PAGES_ENABLED) {
+        SettingsChipRow(MR.strings.page_layout) {
+            ReaderPreferences.PageLayouts.mapIndexed { index, labelRes ->
+                FilterChip(
+                    selected = pageLayout == index,
+                    onClick = {
+                        viewModel.preferences.pageLayout.set(index)
+                        // Double-page (merge) and split-wide-pages are mutually exclusive.
+                        if (index != PagerConfig.PageLayout.SINGLE_PAGE) {
+                            viewModel.preferences.dualPageSplitPaged.set(false)
+                        }
+                    },
+                    label = { Text(stringResource(labelRes)) },
+                )
+            }
         }
     }
 
