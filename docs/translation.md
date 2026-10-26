@@ -50,9 +50,19 @@ app/src/main/java/mihon/feature/translation/
     cache/                             PageTranslationCache
 ```
 
-Reader hook: `PagerPageHolder.process()` / `WebtoonPageHolder.process()` call
-`ReaderPageTranslation.translate()` before the existing split/rotate steps when
-`ViewerConfig.translatePages` is on. Failures fall back to the original page and are toasted.
+Reader hook: `PagerPageHolder.setImage()` / `WebtoonPageHolder.process()` call
+`ReaderPageTranslation.translate()` when `ViewerConfig.translatePages` is on. In the paged reader
+each page is translated on its own *before* split, rotate or double-page merge, so spreads on
+foldables get both halves translated and cached separately. Failures fall back to the original page
+and are toasted.
+
+Dependency injection uses Mihon's Metro graph: `TranslationPreferences` and `ReaderPageTranslation`
+are `@Inject @SingleIn(AppScope::class)` classes, `TranslationManager` is provided by
+`TranslationBindings`, and all three are exposed on `AppGraph` (`context.appGraph.…`).
+`ChapterTranslationJob` is injected with `graph.inject(this)` like `DownloadWorker`.
+
+Not covered: the opt-in **High quality renderer** (WebGPU, Settings › Advanced) decodes pages
+itself, so pages are not translated while it is enabled.
 
 ### Translate after download
 
@@ -126,6 +136,18 @@ Chinese manhua in the library.
 18. **Translate after download, missing packs** – Delete a required pack, download a chapter. Expect:
     error notification "Could not translate …" with the models-missing message.
 
+## Double-page (foldable) interaction
+
+Tested together with the fork's double-page reading mode (Settings › Reader › Page layout):
+
+19. **Double pages + translate** – Page layout → Double pages, enable Translate. Expect: both pages
+    of each spread translated, spread still merged side by side.
+20. **Automatic layout on the Find N6** – Page layout → Automatic. Folded (cover screen): single
+    pages. Unfolded (inner screen, portrait): double pages. Rotate unfolded to landscape: double.
+21. **Rotate wide pages to fit** – Page layout → Single page, Split wide pages off, Rotate wide pages
+    to fit on, open a chapter with a double-page spread image. Expect: the wide image is rotated
+    (this was silently ignored before the fix).
+
 ## Assumptions to verify on a device
 
 Marked `ASSUMPTION` in code comments as well:
@@ -139,3 +161,5 @@ Marked `ASSUMPTION` in code comments as well:
 - PP-OCR input channel order RGB (the reference port uses RGB; PaddleOCR's own pipeline decodes BGR).
 - `LineSegmenter` heuristics (vertical ratio 1.3, gap merging) are untested on real pages.
 - `<unk>` id 1 is used for the opus-mt tokenizer even though its `tokenizer.json` says `unk_id: 2`.
+- Automatic page layout thresholds (≥ 600 dp wide and width/height ≥ 0.8 counts as an unfolded
+  screen) were chosen from published screen sizes, not measured on the Find N6.

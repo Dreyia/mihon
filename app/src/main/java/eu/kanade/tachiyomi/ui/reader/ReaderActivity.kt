@@ -6,7 +6,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
@@ -44,10 +43,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.google.android.material.transition.platform.MaterialContainerTransform
-import com.hippo.unifile.UniFile
-import eu.kanade.core.util.ifSourcesLoaded
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.OrientationSelectDialog
@@ -59,7 +56,6 @@ import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.components.ChapterNavigatorType
 import eu.kanade.presentation.reader.settings.ReaderSettingsDialog
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.databinding.ReaderActivityBinding
@@ -81,12 +77,14 @@ import eu.kanade.tachiyomi.ui.reader.viewer.pager.AutoPageLayout
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
-import eu.kanade.tachiyomi.util.system.isNightMode
 import eu.kanade.tachiyomi.util.system.openInBrowser
+import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.setComposeContent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -97,21 +95,20 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.app.di.AppGraph
+import mihon.core.metro.metroGraph
 import mihon.feature.translation.ReaderPageTranslation
 import mihon.feature.translation.TranslationPreferences
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import java.io.ByteArrayOutputStream
 import kotlin.time.Duration.Companion.seconds
 
 class ReaderActivity : BaseActivity() {
+
+    private val graph: AppGraph by lazy { metroGraph() }
 
     companion object {
         /** Translation failures can repeat for every page; only toast once per interval. */
@@ -126,13 +123,17 @@ class ReaderActivity : BaseActivity() {
         }
     }
 
-    private val readerPreferences = Injekt.get<ReaderPreferences>()
-    private val translationPreferences = Injekt.get<TranslationPreferences>()
-    private val preferences = Injekt.get<BasePreferences>()
+    @Inject private lateinit var readerPreferences: ReaderPreferences
+
+    @Inject private lateinit var preferences: BasePreferences
+
+    @Inject private lateinit var translationPreferences: TranslationPreferences
+
+    @Inject private lateinit var pageTranslation: ReaderPageTranslation
 
     lateinit var binding: ReaderActivityBinding
 
-    val viewModel by viewModels<ReaderViewModel>()
+    val viewModel by viewModels<ReaderViewModel> { graph.viewModelFactory }
     private var assistUrl: String? = null
 
     /**
@@ -155,6 +156,7 @@ class ReaderActivity : BaseActivity() {
      * Called when the activity is created. Initializes the presenter and configuration.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
+        graph.inject(this)
         registerSecureActivity(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(
@@ -254,7 +256,7 @@ class ReaderActivity : BaseActivity() {
             }
             .launchIn(lifecycleScope)
 
-        ReaderPageTranslation.errors
+        pageTranslation.errors
             .sample(TRANSLATION_ERROR_TOAST_INTERVAL_MS)
             .onEach { error ->
                 when (error) {
@@ -274,6 +276,7 @@ class ReaderActivity : BaseActivity() {
                 readerState = viewModel.state,
                 onChangeReadingMode = viewModel::setMangaReadingMode,
                 onChangeOrientation = viewModel::setMangaOrientationType,
+                preferences = readerPreferences,
             )
         }
 
@@ -361,13 +364,11 @@ class ReaderActivity : BaseActivity() {
         config = null
         menuToggleToast?.cancel()
         readingModeToast?.cancel()
-        ReaderPageTranslation.releaseModels()
+        pageTranslation.releaseModels()
     }
 
     override fun onPause() {
-        lifecycleScope.launchNonCancellable {
-            viewModel.updateHistory()
-        }
+        viewModel.saveHistory()
         super.onPause()
     }
 
@@ -468,11 +469,7 @@ class ReaderActivity : BaseActivity() {
 
     @Composable
     fun AppBars(state: ReaderViewModel.State) {
-        if (!ifSourcesLoaded()) {
-            return
-        }
-
-        val isHttpSource = viewModel.getSource() is HttpSource
+        val isHttpSource = state.source is HttpSource
 
         val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
@@ -501,7 +498,7 @@ class ReaderActivity : BaseActivity() {
             onShare = ::shareChapter.takeIf { isHttpSource },
 
             chapterNavigatorType = if (!verticalNavigator) {
-                if (state.viewer is R2LPagerViewer) {
+                if (state.viewer is R2LPagerViewer || (state.viewer as? WebGpuViewer)?.isReversed ?: false) {
                     ChapterNavigatorType.HORIZONTAL_RTL
                 } else {
                     ChapterNavigatorType.HORIZONTAL_LTR
@@ -547,7 +544,7 @@ class ReaderActivity : BaseActivity() {
                 val enabled = viewModel.toggleTranslation()
                 menuToggleToast?.cancel()
                 menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
-                if (!enabled) ReaderPageTranslation.releaseModels()
+                if (!enabled) pageTranslation.releaseModels()
             },
             onClickSettings = viewModel::openSettingsDialog,
         )
@@ -657,7 +654,7 @@ class ReaderActivity : BaseActivity() {
         binding.readerContainer.removeView(loadingIndicator)
         viewModel.state.value.viewer?.setChapters(viewerChapters)
 
-        lifecycleScope.launchIO {
+        lifecycleScope.launch(Dispatchers.IO) {
             viewModel.getChapterUrl()?.let { url ->
                 assistUrl = url
             }
@@ -742,7 +739,7 @@ class ReaderActivity : BaseActivity() {
      * the viewer is reaching the beginning or end of a chapter or the transition page is active.
      */
     fun requestPreloadChapter(chapter: ReaderChapter) {
-        lifecycleScope.launchIO { viewModel.preload(chapter) }
+        lifecycleScope.launch(Dispatchers.IO) { viewModel.preload(chapter) }
     }
 
     /**
@@ -919,12 +916,8 @@ class ReaderActivity : BaseActivity() {
         init {
             readerPreferences.readerTheme.changes()
                 .onEach { theme ->
-                    binding.readerContainer.setBackgroundColor(readerBackgroundColor(baseContext, theme))
+                    binding.readerContainer.setBackgroundColor(baseContext.readerBackgroundColor(theme))
                 }
-                .launchIn(lifecycleScope)
-
-            preferences.displayProfile.changes()
-                .onEach { setDisplayProfile(it) }
                 .launchIn(lifecycleScope)
 
             readerPreferences.keepScreenOn.changes()
@@ -952,25 +945,6 @@ class ReaderActivity : BaseActivity() {
                     updateViewerInset(fullscreen, drawUnderCutout)
                 }
                 .launchIn(lifecycleScope)
-        }
-
-        /**
-         * Sets the display profile to [path].
-         */
-        private fun setDisplayProfile(path: String) {
-            val file = UniFile.fromUri(baseContext, path.toUri())
-            if (file != null && file.exists()) {
-                val inputStream = file.openInputStream()
-                val outputStream = ByteArrayOutputStream()
-                inputStream.use { input ->
-                    outputStream.use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                val data = outputStream.toByteArray()
-                SubsamplingScaleImageView.setDisplayProfile(data)
-                TachiyomiImageDecoder.displayProfile = data
-            }
         }
 
         /**
@@ -1024,18 +998,4 @@ class ReaderActivity : BaseActivity() {
             binding.viewerContainer.setLayerType(LAYER_TYPE_HARDWARE, paint)
         }
     }
-}
-
-private val readerGrayBackgroundColor = Color.rgb(0x20, 0x21, 0x25)
-
-/**
- * Maps the reader background [theme] preference (white=0, black=1, gray=2, automatic=3) to its fill
- * colour. Shared by the reader container background and the double-page spread letterbox so the two
- * never drift apart. [context] is only consulted for the night-mode-dependent Automatic theme.
- */
-internal fun readerBackgroundColor(context: Context, theme: Int): Int = when (theme) {
-    0 -> Color.WHITE
-    2 -> readerGrayBackgroundColor
-    3 -> if (context.isNightMode()) readerGrayBackgroundColor else Color.WHITE
-    else -> Color.BLACK
 }

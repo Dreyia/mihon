@@ -3,6 +3,11 @@ package eu.kanade.presentation.more.settings.screen.browse
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,17 +24,17 @@ import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.extension.interactor.RemoveExtensionStore
 import mihon.domain.extension.interactor.UpdateExtensionStores
 import mihon.domain.extension.model.ExtensionStore
-import tachiyomi.core.common.util.lang.launchIO
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class ExtensionStoresViewModel(
-    private val getExtensionStores: GetExtensionStores = Injekt.get(),
-    private val addExtensionStore: AddExtensionStore = Injekt.get(),
-    private val removeExtensionStore: RemoveExtensionStore = Injekt.get(),
-    private val updateExtensionStores: UpdateExtensionStores = Injekt.get(),
-    private val extensionManager: ExtensionManager = Injekt.get(),
+    private val getExtensionStores: GetExtensionStores,
+    private val addExtensionStore: AddExtensionStore,
+    private val removeExtensionStore: RemoveExtensionStore,
+    private val updateExtensionStores: UpdateExtensionStores,
+    private val extensionManager: ExtensionManager,
 ) : ViewModel() {
 
     private val dialog = MutableStateFlow<ExtensionStoreDialog?>(null)
@@ -84,7 +89,7 @@ class ExtensionStoresViewModel(
      * Refreshes information for each repository.
      */
     fun refreshRepos() {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             updateExtensionStores()
         }
     }
@@ -93,14 +98,14 @@ class ExtensionStoresViewModel(
      * Deletes the given repo from the database
      */
     fun deleteRepo(baseUrl: String) {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             removeExtensionStore(baseUrl)
             extensionManager.findAvailableExtensions()
         }
     }
 
     fun addFromDeeplink(storeIndexUrl: String) {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             val alreadyExists = getExtensionStores.get().any { it.indexUrl == storeIndexUrl }
             dialog.update { ExtensionStoreDialog.Confirm(url = storeIndexUrl, alreadyExists = alreadyExists) }
         }

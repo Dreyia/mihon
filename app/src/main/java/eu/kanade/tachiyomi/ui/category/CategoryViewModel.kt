@@ -4,6 +4,13 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.icerock.moko.resources.StringResource
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,6 +21,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.core.metro.AppCoroutineScope
 import tachiyomi.domain.category.interactor.CreateCategoryWithName
 import tachiyomi.domain.category.interactor.DeleteCategory
 import tachiyomi.domain.category.interactor.GetCategories
@@ -21,16 +29,18 @@ import tachiyomi.domain.category.interactor.RenameCategory
 import tachiyomi.domain.category.interactor.ReorderCategory
 import tachiyomi.domain.category.model.Category
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class CategoryViewModel(
-    private val getCategories: GetCategories = Injekt.get(),
-    private val createCategoryWithName: CreateCategoryWithName = Injekt.get(),
-    private val deleteCategory: DeleteCategory = Injekt.get(),
-    private val reorderCategory: ReorderCategory = Injekt.get(),
-    private val renameCategory: RenameCategory = Injekt.get(),
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    private val getCategories: GetCategories,
+    private val createCategoryWithName: CreateCategoryWithName,
+    private val deleteCategory: DeleteCategory,
+    private val reorderCategory: ReorderCategory,
+    private val renameCategory: RenameCategory,
 ) : ViewModel() {
 
     private val _events: Channel<CategoryEvent> = Channel()
@@ -60,7 +70,8 @@ class CategoryViewModel(
 
     fun deleteCategory(categoryId: Long) {
         viewModelScope.launch {
-            when (deleteCategory.await(categoryId = categoryId)) {
+            // The deletion finishes even if the screen is left while it runs
+            when (appScope.async { deleteCategory.await(categoryId = categoryId) }.await()) {
                 is DeleteCategory.Result.InternalError -> _events.send(CategoryEvent.InternalError)
                 else -> {}
             }

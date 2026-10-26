@@ -1,5 +1,8 @@
 package mihon.feature.translation
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import mihon.feature.translation.core.InpaintMode
 import mihon.feature.translation.core.PageEngine
 import mihon.feature.translation.core.SourceLanguage
@@ -9,6 +12,8 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
+@Inject
+@SingleIn(AppScope::class)
 class TranslationPreferences(
     preferenceStore: PreferenceStore,
 ) {

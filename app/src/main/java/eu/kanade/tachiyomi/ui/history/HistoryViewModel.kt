@@ -4,18 +4,23 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.presentation.history.HistoryUiModel
 import eu.kanade.tachiyomi.util.lang.toLocalDate
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,11 +31,12 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import logcat.LogPriority
+import mihon.core.metro.AppCoroutineScope
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.mapAsCheckboxState
-import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.core.common.util.lang.withIOContext
+import tachiyomi.core.common.util.lang.SubscriberGate
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
@@ -46,24 +52,29 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class HistoryViewModel(
-    private val addTracks: AddTracks = Injekt.get(),
-    private val getCategories: GetCategories = Injekt.get(),
-    private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
-    private val getHistory: GetHistory = Injekt.get(),
-    private val getManga: GetManga = Injekt.get(),
-    private val getNextChapters: GetNextChapters = Injekt.get(),
-    private val libraryPreferences: LibraryPreferences = Injekt.get(),
-    private val removeHistory: RemoveHistory = Injekt.get(),
-    private val setMangaCategories: SetMangaCategories = Injekt.get(),
-    private val updateManga: UpdateManga = Injekt.get(),
-    val snackbarHostState: SnackbarHostState = SnackbarHostState(),
-    private val sourceManager: SourceManager = Injekt.get(),
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    private val addTracks: AddTracks,
+    private val getCategories: GetCategories,
+    private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
+    private val getHistory: GetHistory,
+    private val getManga: GetManga,
+    private val getNextChapters: GetNextChapters,
+    private val libraryPreferences: LibraryPreferences,
+    private val removeHistory: RemoveHistory,
+    private val setMangaCategories: SetMangaCategories,
+    private val updateManga: UpdateManga,
+    private val sourceManager: SourceManager,
 ) : ViewModel() {
+
+    private val subscriberGate = SubscriberGate()
+
+    val snackbarHostState: SnackbarHostState = SnackbarHostState()
 
     private val _events: Channel<Event> = Channel(Channel.UNLIMITED)
     val events: Flow<Event> = _events.receiveAsFlow()
@@ -81,9 +92,9 @@ class HistoryViewModel(
                     _events.send(Event.InternalError)
                 }
                 .map { it.toHistoryUiModels() }
-                .flowOn(Dispatchers.IO)
+                .flowOn(Dispatchers.Default)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), emptyList())
+        .stateIn(viewModelScope + subscriberGate, SharingStarted.Eagerly, emptyList())
 
     val state: StateFlow<State> = combine(
         searchQuery,
@@ -92,13 +103,13 @@ class HistoryViewModel(
     ) { searchQuery, history, dialog ->
         State(searchQuery = searchQuery, list = history, dialog = dialog)
     }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
+        .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State())
 
     private fun List<HistoryWithRelations>.toHistoryUiModels(): List<HistoryUiModel> {
         return map { HistoryUiModel.Item(it) }
             .insertSeparators { before, after ->
-                val beforeDate = before?.item?.readAt?.time?.toLocalDate()
-                val afterDate = after?.item?.readAt?.time?.toLocalDate()
+                val beforeDate = before?.item?.readAt?.toLocalDate()
+                val afterDate = after?.item?.readAt?.toLocalDate()
                 when {
                     beforeDate != afterDate && afterDate != null -> HistoryUiModel.Header(afterDate)
                     // Return null to avoid adding a separator between two items.
@@ -108,11 +119,11 @@ class HistoryViewModel(
     }
 
     suspend fun getNextChapter(): Chapter? {
-        return withIOContext { getNextChapters.await(onlyUnread = false).firstOrNull() }
+        return getNextChapters.await(onlyUnread = false).firstOrNull()
     }
 
     fun getNextChapterForManga(mangaId: Long, chapterId: Long) {
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             sendNextChapterEvent(getNextChapters.await(mangaId, chapterId, onlyUnread = false))
         }
     }
@@ -123,21 +134,21 @@ class HistoryViewModel(
     }
 
     fun removeFromHistory(history: HistoryWithRelations) {
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             removeHistory.await(history)
         }
     }
 
     fun removeAllFromHistory(mangaId: Long) {
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             removeHistory.await(mangaId)
         }
     }
 
     fun removeAllHistory() {
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             val result = removeHistory.awaitAll()
-            if (!result) return@launchIO
+            if (!result) return@launch
             _events.send(Event.HistoryCleared)
         }
     }
@@ -165,7 +176,7 @@ class HistoryViewModel(
     }
 
     private fun moveMangaToCategory(mangaId: Long, categoryIds: List<Long>) {
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             setMangaCategories.await(mangaId, categoryIds)
         }
     }
@@ -174,7 +185,7 @@ class HistoryViewModel(
         moveMangaToCategory(manga.id, categories)
         if (manga.favorite) return
 
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             updateManga.awaitUpdateFavorite(manga.id, true)
         }
     }
@@ -185,13 +196,13 @@ class HistoryViewModel(
     }
 
     fun addFavorite(mangaId: Long) {
-        viewModelScope.launchIO {
-            val manga = getManga.await(mangaId) ?: return@launchIO
+        viewModelScope.launch {
+            val manga = getManga.await(mangaId) ?: return@launch
 
             val duplicates = getDuplicateLibraryManga(manga)
             if (duplicates.isNotEmpty()) {
                 dialog.update { Dialog.DuplicateManga(manga, duplicates) }
-                return@launchIO
+                return@launch
             }
 
             addFavorite(manga)
@@ -199,7 +210,7 @@ class HistoryViewModel(
     }
 
     fun addFavorite(manga: Manga) {
-        viewModelScope.launchIO {
+        viewModelScope.launch {
             // Move to default category if applicable
             val categories = getCategories()
             val defaultCategoryId = libraryPreferences.defaultCategory.get().toLong()
@@ -209,14 +220,14 @@ class HistoryViewModel(
                 // Default category set
                 defaultCategory != null -> {
                     val result = updateManga.awaitUpdateFavorite(manga.id, true)
-                    if (!result) return@launchIO
+                    if (!result) return@launch
                     moveMangaToCategory(manga.id, defaultCategory)
                 }
 
                 // Automatic 'Default' or no categories
                 defaultCategoryId == 0L || categories.isEmpty() -> {
                     val result = updateManga.awaitUpdateFavorite(manga.id, true)
-                    if (!result) return@launchIO
+                    if (!result) return@launch
                     moveMangaToCategory(manga.id, null)
                 }
 
@@ -225,7 +236,7 @@ class HistoryViewModel(
             }
 
             // Sync with tracking services if applicable
-            addTracks.bindEnhancedTrackers(manga, sourceManager.getOrStub(manga.source))
+            appScope.launch { addTracks.bindEnhancedTrackers(manga, sourceManager.getOrStub(manga.source)) }
         }
     }
 

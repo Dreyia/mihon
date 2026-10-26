@@ -1,15 +1,17 @@
 package mihon.feature.translation
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.core.metro.AppCoroutineScope
 import mihon.feature.translation.core.ModelPack
 import mihon.feature.translation.core.ModelsNotInstalledException
 import mihon.feature.translation.core.TranslationManager
@@ -17,19 +19,21 @@ import okio.Buffer
 import okio.BufferedSource
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
-import uy.kohesive.injekt.injectLazy
 
 /**
  * Bridge between the reader's page pipeline and [TranslationManager].
  */
-object ReaderPageTranslation {
+@Inject
+@SingleIn(AppScope::class)
+class ReaderPageTranslation(
+    private val manager: TranslationManager,
+    @AppCoroutineScope private val scope: CoroutineScope,
+) {
 
     sealed interface Error {
         data class ModelsMissing(val packs: Set<ModelPack>) : Error
         data class Failed(val message: String?) : Error
     }
-
-    private val manager: TranslationManager by injectLazy()
 
     private val _errors =
         MutableSharedFlow<Error>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -37,7 +41,6 @@ object ReaderPageTranslation {
     /** Problems hit while translating pages; the reader shows them as toasts. */
     val errors: SharedFlow<Error> = _errors
 
-    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val downloads = HashMap<ModelPack, Job>()
 
     /**
@@ -64,14 +67,14 @@ object ReaderPageTranslation {
 
     /** Frees the loaded models without blocking the caller. */
     fun releaseModels() {
-        downloadScope.launch { manager.release() }
+        scope.launch { manager.release() }
     }
 
     /** Starts (or resumes) a model pack download that outlives the settings screen. */
     @Synchronized
     fun startDownload(pack: ModelPack) {
         if (downloads[pack]?.isActive == true) return
-        downloads[pack] = downloadScope.launch {
+        downloads[pack] = scope.launch {
             try {
                 manager.modelStore.download(pack)
             } catch (e: CancellationException) {

@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.notification.Notifications
@@ -23,6 +24,8 @@ import eu.kanade.tachiyomi.util.system.notify
 import eu.kanade.tachiyomi.util.system.setForegroundSafely
 import kotlinx.coroutines.CancellationException
 import logcat.LogPriority
+import mihon.app.di.AppGraph
+import mihon.core.metro.metroGraph
 import mihon.feature.translation.core.ModelsNotInstalledException
 import mihon.feature.translation.core.TranslationManager
 import tachiyomi.core.common.i18n.stringResource
@@ -31,8 +34,6 @@ import tachiyomi.domain.chapter.interactor.GetChapter
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * Translates every page of a downloaded chapter into the page-translation cache so the chapter
@@ -41,12 +42,23 @@ import uy.kohesive.injekt.api.get
  */
 class ChapterTranslationJob(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
-    private val getManga: GetManga = Injekt.get()
-    private val getChapter: GetChapter = Injekt.get()
-    private val sourceManager: SourceManager = Injekt.get()
-    private val downloadManager: DownloadManager = Injekt.get()
-    private val downloadProvider: DownloadProvider = Injekt.get()
-    private val translationManager: TranslationManager = Injekt.get()
+    private val graph: AppGraph = context.metroGraph()
+
+    @Inject private lateinit var getManga: GetManga
+
+    @Inject private lateinit var getChapter: GetChapter
+
+    @Inject private lateinit var sourceManager: SourceManager
+
+    @Inject private lateinit var downloadManager: DownloadManager
+
+    @Inject private lateinit var downloadProvider: DownloadProvider
+
+    @Inject private lateinit var translationManager: TranslationManager
+
+    init {
+        graph.inject(this)
+    }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = progressNotification(

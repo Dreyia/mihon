@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import android.graphics.Color
 import androidx.annotation.ColorInt
-import eu.kanade.tachiyomi.ui.reader.readerBackgroundColor
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerConfig
@@ -12,12 +11,12 @@ import eu.kanade.tachiyomi.ui.reader.viewer.navigation.EdgeNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.KindlishNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.RightAndLeftNavigation
+import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
+import mihon.feature.translation.TranslationPreferences
 
 /**
  * Configuration used by pager viewers.
@@ -25,8 +24,9 @@ import uy.kohesive.injekt.api.get
 class PagerConfig(
     private val viewer: PagerViewer,
     scope: CoroutineScope,
-    readerPreferences: ReaderPreferences = Injekt.get(),
-) : ViewerConfig(readerPreferences, scope) {
+    readerPreferences: ReaderPreferences,
+    translationPreferences: TranslationPreferences,
+) : ViewerConfig(readerPreferences, scope, translationPreferences) {
 
     var theme = readerPreferences.readerTheme.get()
         private set
@@ -79,7 +79,7 @@ class PagerConfig(
                     theme = it
                     automaticBackground = it == 3
                     // Letterbox colour behind unequal-height merged spreads; reuse the reader's own bg mapping.
-                    pageCanvasColor = readerBackgroundColor(viewer.activity, it)
+                    pageCanvasColor = viewer.activity.readerBackgroundColor(it)
                 },
                 {
                     imagePropertyChangedListener?.invoke()

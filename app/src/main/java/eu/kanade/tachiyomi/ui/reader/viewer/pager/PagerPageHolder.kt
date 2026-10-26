@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.view.LayoutInflater
 import androidx.core.view.isVisible
+import ca.mpreg.imagedecoder.ImageDecoder
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
@@ -14,6 +15,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.widget.ViewPagerAdapter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -21,17 +23,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
-import mihon.feature.translation.ReaderPageTranslation
+import mihon.app.di.appGraph
 import okio.Buffer
 import okio.BufferedSource
 import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.core.common.util.lang.withIOContext
-import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.decoder.ImageDecoder
 import tachiyomi.i18n.MR
 import kotlin.math.max
 
@@ -115,7 +114,7 @@ class PagerPageHolder(
         val loader = page.chapter.pageLoader ?: return
 
         supervisorScope {
-            launchIO {
+            launch(Dispatchers.IO) {
                 loader.loadPage(page)
             }
             page.statusFlow.collectLatest { state ->
@@ -192,32 +191,35 @@ class PagerPageHolder(
         if (extraPage != null && streamFn2 == null) return
 
         try {
-            val (source, isAnimated, background) = withIOContext {
-                streamFn().buffered(16).use { source ->
-                    (if (extraPage != null) streamFn2?.invoke()?.buffered(16) else null).use { source2 ->
-                        // Translate each page on its own, before any split/rotate/merge, so the
-                        // detector sees whole pages and both halves of a spread hit the cache.
-                        val first = translateIfEnabled(Buffer().readFrom(source))
-                        val itemSource = when {
-                            viewer.config.dualPageSplit -> process(item.first, first)
-                            source2 == null -> if (viewer.config.dualPageRotateToFit) {
-                                rotateDualPage(first)
-                            } else {
-                                handleWideImage(first)
-                            }
-                            else -> mergePages(first, translateIfEnabled(Buffer().readFrom(source2)))
-                        }
-                        val isAnimated = ImageUtil.isAnimatedAndSupported(itemSource)
-                        val background = if (!isAnimated && viewer.config.automaticBackground) {
-                            ImageUtil.chooseBackground(context, itemSource.peek().inputStream())
-                        } else {
-                            null
-                        }
-                        Triple(itemSource, isAnimated, background)
-                    }
-                }
+            val (buffer, buffer2) = withContext(Dispatchers.IO) {
+                val first = streamFn().use { Buffer().readFrom(it) }
+                val second = if (extraPage != null) streamFn2?.invoke()?.use { Buffer().readFrom(it) } else null
+                first to second
             }
-            withUIContext {
+            // Translate each page on its own, before any split/rotate/merge, so the detector sees whole
+            // pages and both halves of a spread hit the cache.
+            val first = translateIfEnabled(buffer)
+            val second = buffer2?.let { translateIfEnabled(it) }
+            // Splitting, merging and sampling the background decode the image, which is CPU work
+            val (source, isAnimated, background) = withContext(Dispatchers.Default) {
+                val source = when {
+                    viewer.config.dualPageSplit -> process(item.first, first)
+                    second == null -> if (viewer.config.dualPageRotateToFit) {
+                        rotateDualPage(first)
+                    } else {
+                        handleWideImage(first)
+                    }
+                    else -> mergePages(first, second)
+                }
+                val isAnimated = ImageUtil.isAnimatedAndSupported(source)
+                val background = if (!isAnimated && viewer.config.automaticBackground) {
+                    ImageUtil.chooseBackground(context, source.peek().inputStream())
+                } else {
+                    null
+                }
+                Triple(source, isAnimated, background)
+            }
+            withContext(Dispatchers.Main) {
                 setImage(
                     source,
                     isAnimated,
@@ -238,14 +240,16 @@ class PagerPageHolder(
             }
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e)
-            withUIContext {
+            withContext(Dispatchers.Main) {
                 setError(e)
             }
         }
     }
 
-    private suspend fun translateIfEnabled(imageSource: BufferedSource): BufferedSource =
-        if (viewer.config.translatePages) ReaderPageTranslation.translate(imageSource) else imageSource
+    private suspend fun translateIfEnabled(imageSource: BufferedSource): BufferedSource {
+        if (!viewer.config.translatePages) return imageSource
+        return viewer.activity.appGraph.readerPageTranslation.translate(imageSource)
+    }
 
     private fun process(page: ReaderPage, source: BufferedSource): BufferedSource {
         if (viewer.config.dualPageRotateToFit) {
@@ -372,7 +376,7 @@ class PagerPageHolder(
             // peek() so the source is NOT consumed: the wide/decode-fail branches in mergePages
             // return this same source to be displayed solo, and an emptied source would make the
             // image view fail with "decoder failed to initialize and get image size".
-            ImageDecoder.newInstance(imageSource.peek().inputStream())?.decode()
+            ImageDecoder.open(imageSource.peek().inputStream()).use { it.decodeToBitmap(null, 1) }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Cannot decode image" }
             null

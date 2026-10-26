@@ -13,16 +13,16 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
+import mihon.feature.translation.TranslationPreferences
 
 /**
  * Configuration used by webtoon viewers.
  */
 class WebtoonConfig(
     scope: CoroutineScope,
-    readerPreferences: ReaderPreferences = Injekt.get(),
-) : ViewerConfig(readerPreferences, scope) {
+    readerPreferences: ReaderPreferences,
+    translationPreferences: TranslationPreferences,
+) : ViewerConfig(readerPreferences, scope, translationPreferences) {
 
     var themeChangedListener: (() -> Unit)? = null
 

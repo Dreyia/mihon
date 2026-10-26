@@ -25,6 +25,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.widget.PrefsHorizontalPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import mihon.app.di.appGraph
 import mihon.feature.translation.ReaderPageTranslation
 import mihon.feature.translation.TranslationPreferences
 import mihon.feature.translation.core.InpaintMode
@@ -37,8 +38,6 @@ import mihon.feature.translation.core.TranslationManager
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object SettingsTranslationScreen : SearchableSettings {
 
@@ -48,8 +47,10 @@ object SettingsTranslationScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val prefs = remember { Injekt.get<TranslationPreferences>() }
-        val manager = remember { Injekt.get<TranslationManager>() }
+        val context = LocalContext.current
+        val prefs = remember { context.appGraph.translationPreferences }
+        val manager = remember { context.appGraph.translationManager }
+        val pageTranslation = remember { context.appGraph.readerPageTranslation }
         val pageEngine by prefs.pageEngine.collectAsState()
         val textEngine by prefs.textEngine.collectAsState()
         // Read so the required-packs list below recomposes when these change.
@@ -89,7 +90,7 @@ object SettingsTranslationScreen : SearchableSettings {
                 title = stringResource(MR.strings.pref_translation_target_language),
                 subtitle = stringResource(MR.strings.pref_translation_target_language_summary),
             ),
-            onDeviceGroup(prefs, manager, enabled = onDevice),
+            onDeviceGroup(prefs, manager, pageTranslation, enabled = onDevice),
             serverGroup(prefs, enabled = !onDevice),
             llmGroup(prefs, enabled = onDevice && textEngine == TextEngine.OPENAI_COMPATIBLE),
             storageGroup(manager),
@@ -100,6 +101,7 @@ object SettingsTranslationScreen : SearchableSettings {
     private fun onDeviceGroup(
         prefs: TranslationPreferences,
         manager: TranslationManager,
+        pageTranslation: ReaderPageTranslation,
         enabled: Boolean,
     ): Preference.PreferenceGroup {
         return Preference.PreferenceGroup(
@@ -139,7 +141,11 @@ object SettingsTranslationScreen : SearchableSettings {
                 Preference.PreferenceItem.CustomPreference(
                     title = stringResource(MR.strings.pref_translation_models),
                 ) {
-                    ModelPackList(manager = manager, required = prefs.toConfig().requiredPacks())
+                    ModelPackList(
+                        manager = manager,
+                        pageTranslation = pageTranslation,
+                        required = prefs.toConfig().requiredPacks(),
+                    )
                 },
             ),
         )
@@ -217,7 +223,11 @@ object SettingsTranslationScreen : SearchableSettings {
     }
 
     @Composable
-    private fun ModelPackList(manager: TranslationManager, required: Set<ModelPack>) {
+    private fun ModelPackList(
+        manager: TranslationManager,
+        pageTranslation: ReaderPageTranslation,
+        required: Set<ModelPack>,
+    ) {
         val context = LocalContext.current
         val status by manager.modelStore.status.collectAsState()
         val requiredSize = Formatter.formatFileSize(context, required.sumOf { it.totalSize })
@@ -282,11 +292,11 @@ object SettingsTranslationScreen : SearchableSettings {
                             Text(stringResource(MR.strings.action_delete))
                         }
                         is PackStatus.Downloading -> TextButton(onClick = {
-                            ReaderPageTranslation.cancelDownload(pack)
+                            pageTranslation.cancelDownload(pack)
                         }) {
                             Text(stringResource(MR.strings.action_cancel))
                         }
-                        else -> TextButton(onClick = { ReaderPageTranslation.startDownload(pack) }) {
+                        else -> TextButton(onClick = { pageTranslation.startDownload(pack) }) {
                             Text(stringResource(MR.strings.action_download))
                         }
                     }

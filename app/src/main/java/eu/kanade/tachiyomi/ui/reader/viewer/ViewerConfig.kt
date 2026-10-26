@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import mihon.feature.translation.TranslationPreferences
 import tachiyomi.core.common.preference.Preference
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * Common configuration for all viewers.
@@ -16,7 +14,8 @@ import uy.kohesive.injekt.api.get
 abstract class ViewerConfig(
     readerPreferences: ReaderPreferences,
     private val scope: CoroutineScope,
-    translationPreferences: TranslationPreferences = Injekt.get(),
+    /** Only viewers that run pages through the translation pipeline pass this. */
+    translationPreferences: TranslationPreferences? = null,
 ) {
 
     var imagePropertyChangedListener: (() -> Unit)? = null
@@ -83,8 +82,8 @@ abstract class ViewerConfig(
         readerPreferences.showNavigationOverlayOnStart
             .register({ navigationOverlayOnStart = it })
 
-        translationPreferences.enabled
-            .register({ translatePages = it }, { imagePropertyChangedListener?.invoke() })
+        translationPreferences?.enabled
+            ?.register({ translatePages = it }, { imagePropertyChangedListener?.invoke() })
     }
 
     protected abstract fun defaultNavigation(): ViewerNavigation
