@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +27,8 @@ fun ReaderBottomBar(
     onClickOrientation: () -> Unit,
     cropEnabled: Boolean,
     onClickCropBorder: () -> Unit,
+    translateEnabled: Boolean,
+    onClickTranslate: () -> Unit,
     onClickSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -52,6 +56,14 @@ fun ReaderBottomBar(
             Icon(
                 painter = painterResource(if (cropEnabled) R.drawable.ic_crop_24dp else R.drawable.ic_crop_off_24dp),
                 contentDescription = stringResource(MR.strings.pref_crop_borders),
+            )
+        }
+
+        IconButton(onClick = onClickTranslate) {
+            Icon(
+                imageVector = Icons.Outlined.Translate,
+                contentDescription = stringResource(MR.strings.action_translate),
+                tint = LocalContentColor.current.copy(alpha = if (translateEnabled) 1f else 0.4f),
             )
         }
 

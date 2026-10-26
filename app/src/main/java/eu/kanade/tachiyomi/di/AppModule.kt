@@ -22,6 +22,10 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.AndroidSourceManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
+import mihon.feature.translation.TranslationPreferences
+import mihon.feature.translation.core.ModelStore
+import mihon.feature.translation.core.TranslationManager
+import mihon.feature.translation.core.cache.PageTranslationCache
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
@@ -38,11 +42,13 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.source.local.image.LocalCoverManager
 import tachiyomi.source.local.io.LocalSourceFileSystem
+import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addSingleton
 import uy.kohesive.injekt.api.addSingletonFactory
 import uy.kohesive.injekt.api.get
+import java.io.File
 import java.lang.ref.WeakReference
 
 private val lock = Any()
@@ -111,6 +117,14 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { CoverCache(app) }
 
         addSingletonFactory { NetworkHelper(app, get()) }
+        addSingletonFactory {
+            TranslationManager(
+                modelStore = ModelStore(File(app.filesDir, "translation_models"), get<NetworkHelper>().client),
+                cache = PageTranslationCache(File(app.cacheDir, "translated_pages")),
+                client = get<NetworkHelper>().client,
+                configProvider = { Injekt.get<TranslationPreferences>().toConfig() },
+            )
+        }
         addSingletonFactory { JavaScriptEngine(app) }
 
         addSingletonFactory<SourceManager> { AndroidSourceManager(app, get(), get()) }

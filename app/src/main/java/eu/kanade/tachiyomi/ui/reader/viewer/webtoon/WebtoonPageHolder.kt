@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import logcat.LogPriority
+import mihon.feature.translation.ReaderPageTranslation
 import okio.Buffer
 import okio.BufferedSource
 import tachiyomi.core.common.i18n.stringResource
@@ -215,20 +216,22 @@ class WebtoonPageHolder(
         }
     }
 
-    private fun process(imageSource: BufferedSource): BufferedSource {
+    private suspend fun process(imageSource: BufferedSource): BufferedSource {
+        val source = if (viewer.config.translatePages) ReaderPageTranslation.translate(imageSource) else imageSource
+
         if (viewer.config.dualPageRotateToFit) {
-            return rotateDualPage(imageSource)
+            return rotateDualPage(source)
         }
 
         if (viewer.config.dualPageSplit) {
-            val isDoublePage = ImageUtil.isWideImage(imageSource)
+            val isDoublePage = ImageUtil.isWideImage(source)
             if (isDoublePage) {
                 val upperSide = if (viewer.config.dualPageInvert) ImageUtil.Side.LEFT else ImageUtil.Side.RIGHT
-                return ImageUtil.splitAndMerge(imageSource, upperSide)
+                return ImageUtil.splitAndMerge(source, upperSide)
             }
         }
 
-        return imageSource
+        return source
     }
 
     private fun rotateDualPage(imageSource: BufferedSource): BufferedSource {

@@ -74,6 +74,9 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
+# ONNX Runtime (JNI)
+-keep class ai.onnxruntime.** { *; }
+
 -keep class kotlinx.serialization.**
 -keepclassmembers class kotlinx.serialization.** {
     <methods>;

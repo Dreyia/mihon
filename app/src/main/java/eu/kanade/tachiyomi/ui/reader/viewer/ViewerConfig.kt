@@ -5,14 +5,25 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import mihon.feature.translation.TranslationPreferences
 import tachiyomi.core.common.preference.Preference
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Common configuration for all viewers.
  */
-abstract class ViewerConfig(readerPreferences: ReaderPreferences, private val scope: CoroutineScope) {
+abstract class ViewerConfig(
+    readerPreferences: ReaderPreferences,
+    private val scope: CoroutineScope,
+    translationPreferences: TranslationPreferences = Injekt.get(),
+) {
 
     var imagePropertyChangedListener: (() -> Unit)? = null
+
+    /** Run page images through the translation pipeline before showing them. */
+    var translatePages = false
+        protected set
 
     var navigationModeChangedListener: (() -> Unit)? = null
 
@@ -71,6 +82,9 @@ abstract class ViewerConfig(readerPreferences: ReaderPreferences, private val sc
 
         readerPreferences.showNavigationOverlayOnStart
             .register({ navigationOverlayOnStart = it })
+
+        translationPreferences.enabled
+            .register({ translatePages = it }, { imagePropertyChangedListener?.invoke() })
     }
 
     protected abstract fun defaultNavigation(): ViewerNavigation

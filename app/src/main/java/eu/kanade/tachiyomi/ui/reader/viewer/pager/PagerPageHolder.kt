@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import logcat.LogPriority
+import mihon.feature.translation.ReaderPageTranslation
 import okio.Buffer
 import okio.BufferedSource
 import tachiyomi.core.common.i18n.stringResource
@@ -185,27 +186,31 @@ class PagerPageHolder(
         }
     }
 
-    private fun process(page: ReaderPage, imageSource: BufferedSource): BufferedSource {
+    private suspend fun process(page: ReaderPage, imageSource: BufferedSource): BufferedSource {
+        // Translate the whole page first so the detector sees complete bubbles; the split halves of a
+        // wide page share the same bytes and hit the translation cache.
+        val source = if (viewer.config.translatePages) ReaderPageTranslation.translate(imageSource) else imageSource
+
         if (viewer.config.dualPageRotateToFit) {
-            return rotateDualPage(imageSource)
+            return rotateDualPage(source)
         }
 
         if (!viewer.config.dualPageSplit) {
-            return imageSource
+            return source
         }
 
         if (page is InsertPage) {
-            return splitInHalf(imageSource)
+            return splitInHalf(source)
         }
 
-        val isDoublePage = ImageUtil.isWideImage(imageSource)
+        val isDoublePage = ImageUtil.isWideImage(source)
         if (!isDoublePage) {
-            return imageSource
+            return source
         }
 
         onPageSplit(page)
 
-        return splitInHalf(imageSource)
+        return splitInHalf(source)
     }
 
     private fun rotateDualPage(imageSource: BufferedSource): BufferedSource {

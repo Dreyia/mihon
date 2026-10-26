@@ -94,6 +94,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.feature.translation.ReaderPageTranslation
+import mihon.feature.translation.TranslationPreferences
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
@@ -110,6 +112,9 @@ import kotlin.time.Duration.Companion.seconds
 class ReaderActivity : BaseActivity() {
 
     companion object {
+        /** Translation failures can repeat for every page; only toast once per interval. */
+        private const val TRANSLATION_ERROR_TOAST_INTERVAL_MS = 4000L
+
         fun newIntent(context: Context, mangaId: Long?, chapterId: Long?): Intent {
             return Intent(context, ReaderActivity::class.java).apply {
                 putExtra("manga", mangaId)
@@ -120,6 +125,7 @@ class ReaderActivity : BaseActivity() {
     }
 
     private val readerPreferences = Injekt.get<ReaderPreferences>()
+    private val translationPreferences = Injekt.get<TranslationPreferences>()
     private val preferences = Injekt.get<BasePreferences>()
 
     lateinit var binding: ReaderActivityBinding
@@ -247,6 +253,17 @@ class ReaderActivity : BaseActivity() {
                 }
             }
             .launchIn(lifecycleScope)
+
+        ReaderPageTranslation.errors
+            .sample(TRANSLATION_ERROR_TOAST_INTERVAL_MS)
+            .onEach { error ->
+                when (error) {
+                    is ReaderPageTranslation.Error.ModelsMissing -> toast(MR.strings.translation_error_models_missing)
+                    is ReaderPageTranslation.Error.Failed ->
+                        toast(stringResource(MR.strings.translation_error_failed, error.message.orEmpty()))
+                }
+            }
+            .launchIn(lifecycleScope)
     }
 
     private fun ReaderActivityBinding.setComposeOverlay(): Unit = composeOverlay.setComposeContent {
@@ -344,6 +361,7 @@ class ReaderActivity : BaseActivity() {
         config = null
         menuToggleToast?.cancel()
         readingModeToast?.cancel()
+        ReaderPageTranslation.releaseModels()
     }
 
     override fun onPause() {
@@ -460,6 +478,7 @@ class ReaderActivity : BaseActivity() {
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
         val isPagerType = ReadingMode.isPagerType(viewModel.getMangaReadingMode())
         val cropEnabled = if (isPagerType) cropBorderPaged else cropBorderWebtoon
+        val translateEnabled by translationPreferences.enabled.collectAsState()
 
         val verticalNavigatorModes by readerPreferences.verticalNavigator.collectAsState()
         val verticalNavigator = verticalNavigatorModes.contains(
@@ -522,6 +541,13 @@ class ReaderActivity : BaseActivity() {
                 val enabled = viewModel.toggleCropBorders()
                 menuToggleToast?.cancel()
                 menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+            },
+            translateEnabled = translateEnabled,
+            onClickTranslate = {
+                val enabled = viewModel.toggleTranslation()
+                menuToggleToast?.cancel()
+                menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+                if (!enabled) ReaderPageTranslation.releaseModels()
             },
             onClickSettings = viewModel::openSettingsDialog,
         )

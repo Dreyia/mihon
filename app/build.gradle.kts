@@ -290,6 +290,9 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
+    // On-device page translation (ONNX models)
+    implementation(libs.onnxruntime.android)
+
     // UI libraries
     implementation(libs.material)
     implementation(libs.flexibleAdapter)

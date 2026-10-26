@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
+import mihon.feature.translation.TranslationPreferences
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
@@ -101,6 +102,7 @@ class ReaderViewModel @JvmOverloads constructor(
     private val setMangaViewerFlags: SetMangaViewerFlags = Injekt.get(),
     private val getIncognitoState: GetIncognitoState = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    private val translationPreferences: TranslationPreferences = Injekt.get(),
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(State())
@@ -743,6 +745,8 @@ class ReaderViewModel @JvmOverloads constructor(
             readerPreferences.cropBordersWebtoon.toggle()
         }
     }
+
+    fun toggleTranslation(): Boolean = translationPreferences.enabled.toggle()
 
     /**
      * Generate a filename for the given [manga] and [page]
