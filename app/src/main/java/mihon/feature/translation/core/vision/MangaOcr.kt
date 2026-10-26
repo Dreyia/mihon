@@ -200,6 +200,7 @@ class MangaOcr(
         private const val END_TOKEN = 3 // [SEP]
         private const val DEFAULT_CACHE_LENGTH = 256
         private const val MAX_TOKENS = 300
+
         /** Size of the decoder position-embedding table in the mobile export. */
         private const val MAX_POSITIONS = 128
         private const val REPEAT_LIMIT = 8
@@ -223,8 +224,14 @@ class MangaOcr(
                 val next = text.getOrNull(i + 1)
                 when {
                     c in '!'..'~' -> sb.append((c.code + 0xFEE0).toChar())
-                    c in HALF_KATAKANA && next == 'ﾞ' && VOICED[c] != null -> { sb.append(VOICED[c]); i++ }
-                    c in HALF_KATAKANA && next == 'ﾟ' && SEMI_VOICED[c] != null -> { sb.append(SEMI_VOICED[c]); i++ }
+                    c in HALF_KATAKANA && next == 'ﾞ' && VOICED[c] != null -> {
+                        sb.append(VOICED[c])
+                        i++
+                    }
+                    c in HALF_KATAKANA && next == 'ﾟ' && SEMI_VOICED[c] != null -> {
+                        sb.append(SEMI_VOICED[c])
+                        i++
+                    }
                     c in HALF_KATAKANA -> sb.append(FULL_KATAKANA[c - HALF_KATAKANA.first])
                     else -> sb.append(c)
                 }
@@ -243,7 +250,11 @@ class MangaOcr(
             'ﾊ' to 'バ', 'ﾋ' to 'ビ', 'ﾌ' to 'ブ', 'ﾍ' to 'ベ', 'ﾎ' to 'ボ', 'ｳ' to 'ヴ',
         )
         private val SEMI_VOICED: Map<Char, Char> = mapOf(
-            'ﾊ' to 'パ', 'ﾋ' to 'ピ', 'ﾌ' to 'プ', 'ﾍ' to 'ペ', 'ﾎ' to 'ポ',
+            'ﾊ' to 'パ',
+            'ﾋ' to 'ピ',
+            'ﾌ' to 'プ',
+            'ﾍ' to 'ペ',
+            'ﾎ' to 'ポ',
         )
     }
 }

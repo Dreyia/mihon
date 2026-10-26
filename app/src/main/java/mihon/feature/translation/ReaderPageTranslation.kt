@@ -31,7 +31,8 @@ object ReaderPageTranslation {
 
     private val manager: TranslationManager by injectLazy()
 
-    private val _errors = MutableSharedFlow<Error>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val _errors =
+        MutableSharedFlow<Error>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /** Problems hit while translating pages; the reader shows them as toasts. */
     val errors: SharedFlow<Error> = _errors

@@ -61,7 +61,9 @@ class OnDevicePageTranslator(
                 config.sourceLanguage,
                 config.targetLanguage,
             )
-            require(translations.size == regions.size) { "Translator returned ${translations.size} lines for ${regions.size} inputs" }
+            require(translations.size == regions.size) {
+                "Translator returned ${translations.size} lines for ${regions.size} inputs"
+            }
 
             return withContext(Dispatchers.Default) {
                 val cleaned = inpainter.inpaint(page, regions.map { it.detection.box })
@@ -159,6 +161,7 @@ class OnDevicePageTranslator(
         const val FREE_TEXT_GROW = 0.15f
         const val LIGHT_THRESHOLD = 140
         const val JPEG_QUALITY = 92
+
         /** Pages above this are decoded at a lower sample size to bound memory (~128 MB ARGB). */
         const val MAX_PIXELS = 32_000_000L
     }

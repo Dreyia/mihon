@@ -40,7 +40,11 @@ class MangaImageTranslatorEngine(
         if (endpoint.startsWith("/")) throw TranslationException("Server URL is not set")
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("image", "page" + extensionOf(imageBytes), imageBytes.toRequestBody(mediaTypeOf(imageBytes)))
+            .addFormDataPart(
+                "image",
+                "page" + extensionOf(imageBytes),
+                imageBytes.toRequestBody(mediaTypeOf(imageBytes)),
+            )
             .addFormDataPart("config", config())
             .build()
         val request = Request.Builder().url(endpoint).post(body).build()
@@ -68,7 +72,21 @@ class MangaImageTranslatorEngine(
             },
         )
         put("detector", buildJsonObject { put("detector", "default") })
-        put("ocr", buildJsonObject { put("ocr", if (sourceLanguage == SourceLanguage.JAPANESE) "48px" else "48px_ctc") })
+        put(
+            "ocr",
+            buildJsonObject {
+                put(
+                    "ocr",
+                    if (sourceLanguage ==
+                        SourceLanguage.JAPANESE
+                    ) {
+                        "48px"
+                    } else {
+                        "48px_ctc"
+                    },
+                )
+            },
+        )
     }.toString()
 
     override fun close() = Unit

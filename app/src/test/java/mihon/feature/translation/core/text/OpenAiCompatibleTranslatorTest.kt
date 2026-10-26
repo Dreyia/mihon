@@ -36,7 +36,8 @@ class OpenAiCompatibleTranslatorTest {
         )
         server.start()
         try {
-            val translator = OpenAiCompatibleTranslator(OkHttpClient(), server.url("/v1").toString(), "key", "test-model")
+            val translator =
+                OpenAiCompatibleTranslator(OkHttpClient(), server.url("/v1").toString(), "key", "test-model")
             val result = translator.translate(listOf("こんにちは", "おはよう"), SourceLanguage.JAPANESE, "en")
             assertEquals(listOf("Hello", "Good morning"), result)
 

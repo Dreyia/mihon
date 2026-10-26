@@ -128,7 +128,10 @@ class UnigramTokenizer private constructor(
                 if (piece.length > maxLen) maxLen = piece.length
             }
             val added = root["added_tokens"]?.jsonArray.orEmpty()
-                .associate { it.jsonObject["content"]!!.jsonPrimitive.content to it.jsonObject["id"]!!.jsonPrimitive.content.toInt() }
+                .associate {
+                    it.jsonObject["content"]!!.jsonPrimitive.content to
+                        it.jsonObject["id"]!!.jsonPrimitive.content.toInt()
+                }
             // tokenizer.json declares unk_id 2 for these Marian exports, but the model config and the
             // slow tokenizer both use the "<unk>" entry (id 1). The explicit special token wins.
             val unkId = added["<unk>"] ?: pieces["<unk>"] ?: model["unk_id"]!!.jsonPrimitive.content.toInt()

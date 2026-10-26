@@ -52,7 +52,8 @@ class BubbleTextRenderer(
         val lineHeight = fitted.textSize * TextFitter.LINE_SPACING
         val blockHeight = fitted.lines.size * lineHeight
         val metrics = fill.fontMetrics
-        var baseline = area.exactCenterY() - blockHeight / 2f + lineHeight / 2f - (metrics.ascent + metrics.descent) / 2f
+        var baseline =
+            area.exactCenterY() - blockHeight / 2f + lineHeight / 2f - (metrics.ascent + metrics.descent) / 2f
         val x = area.exactCenterX()
         for (line in fitted.lines) {
             if (outline) canvas.drawText(line, x, baseline, stroke)

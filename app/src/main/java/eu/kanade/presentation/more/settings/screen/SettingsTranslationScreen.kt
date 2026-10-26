@@ -281,7 +281,9 @@ object SettingsTranslationScreen : SearchableSettings {
                         PackStatus.Installed -> TextButton(onClick = { manager.modelStore.delete(pack) }) {
                             Text(stringResource(MR.strings.action_delete))
                         }
-                        is PackStatus.Downloading -> TextButton(onClick = { ReaderPageTranslation.cancelDownload(pack) }) {
+                        is PackStatus.Downloading -> TextButton(onClick = {
+                            ReaderPageTranslation.cancelDownload(pack)
+                        }) {
                             Text(stringResource(MR.strings.action_cancel))
                         }
                         else -> TextButton(onClick = { ReaderPageTranslation.startDownload(pack) }) {

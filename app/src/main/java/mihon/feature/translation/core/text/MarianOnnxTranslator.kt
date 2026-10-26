@@ -58,7 +58,11 @@ class MarianOnnxTranslator(
         try {
             encoder.run(mapOf("input_ids" to inputIds, "attention_mask" to attention)).use { encoded ->
                 val hidden = encoded.tensor(0)
-                return decodeGreedy(hidden, attention, maxNewTokens = (ids.size * 2 + 10).coerceAtMost(MAX_TARGET_TOKENS))
+                return decodeGreedy(
+                    hidden,
+                    attention,
+                    maxNewTokens = (ids.size * 2 + 10).coerceAtMost(MAX_TARGET_TOKENS),
+                )
             }
         } finally {
             inputIds.close()

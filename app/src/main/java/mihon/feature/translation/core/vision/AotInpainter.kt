@@ -156,7 +156,9 @@ class AotInpainter(modelFile: File) : Inpainter {
         val groups = ArrayList<MutableList<Rect>>()
         for (box in boxes) {
             val grown = BitmapOps.inflate(box, MARGIN_RATIO, MIN_MARGIN)
-            val hit = groups.firstOrNull { g -> g.any { Rect.intersects(BitmapOps.inflate(it, MARGIN_RATIO, MIN_MARGIN), grown) } }
+            val hit = groups.firstOrNull { g ->
+                g.any { Rect.intersects(BitmapOps.inflate(it, MARGIN_RATIO, MIN_MARGIN), grown) }
+            }
             if (hit != null) hit += box else groups += mutableListOf(box)
         }
         return groups

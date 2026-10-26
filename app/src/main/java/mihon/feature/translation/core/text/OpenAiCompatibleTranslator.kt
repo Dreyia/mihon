@@ -69,7 +69,8 @@ class OpenAiCompatibleTranslator(
         val sourceName = languageName(source.code)
         val targetName = languageName(target)
         val system = "You translate manga dialogue from $sourceName to $targetName. " +
-            "Keep the tone casual and natural, keep names as they are, keep each line short enough for a speech bubble. " +
+            "Keep the tone casual and natural, keep names as they are, " +
+            "keep each line short enough for a speech bubble. " +
             "Reply with the translated lines only, one per line, keeping the same numbering as the input. " +
             "Never add explanations."
         val user = texts.mapIndexed { i, t -> "${i + 1}. ${t.replace('\n', ' ')}" }.joinToString("\n")
@@ -80,8 +81,18 @@ class OpenAiCompatibleTranslator(
             put(
                 "messages",
                 buildJsonArray {
-                    add(buildJsonObject { put("role", "system"); put("content", system) })
-                    add(buildJsonObject { put("role", "user"); put("content", user) })
+                    add(
+                        buildJsonObject {
+                            put("role", "system")
+                            put("content", system)
+                        },
+                    )
+                    add(
+                        buildJsonObject {
+                            put("role", "user")
+                            put("content", user)
+                        },
+                    )
                 },
             )
         }

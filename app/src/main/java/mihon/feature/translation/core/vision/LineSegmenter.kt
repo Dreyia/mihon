@@ -52,7 +52,13 @@ object LineSegmenter {
         }
     }
 
-    private fun segmentVertical(block: Bitmap, ink: BooleanArray, width: Int, height: Int, background: Int): List<Bitmap> {
+    private fun segmentVertical(
+        block: Bitmap,
+        ink: BooleanArray,
+        width: Int,
+        height: Int,
+        background: Int,
+    ): List<Bitmap> {
         val cols = IntArray(width) { x -> (0 until height).count { y -> ink[y * width + x] } }
         val columns = runs(cols, minInk = maxOf(1, height / 50), minLength = 3)
         if (columns.isEmpty()) return listOf(copy(block))
