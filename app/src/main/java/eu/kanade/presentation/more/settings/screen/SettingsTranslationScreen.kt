@@ -90,9 +90,9 @@ object SettingsTranslationScreen : SearchableSettings {
                 title = stringResource(MR.strings.pref_translation_target_language),
                 subtitle = stringResource(MR.strings.pref_translation_target_language_summary),
             ),
-            onDeviceGroup(prefs, manager, pageTranslation, enabled = onDevice),
-            serverGroup(prefs, enabled = !onDevice),
-            llmGroup(prefs, enabled = onDevice && textEngine == TextEngine.OPENAI_COMPATIBLE),
+            onDeviceGroup(prefs, manager, pageTranslation, visible = onDevice),
+            serverGroup(prefs, visible = !onDevice),
+            llmGroup(prefs, visible = onDevice && textEngine == TextEngine.OPENAI_COMPATIBLE),
             storageGroup(manager),
         )
     }
@@ -102,11 +102,11 @@ object SettingsTranslationScreen : SearchableSettings {
         prefs: TranslationPreferences,
         manager: TranslationManager,
         pageTranslation: ReaderPageTranslation,
-        enabled: Boolean,
+        visible: Boolean,
     ): Preference.PreferenceGroup {
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_translation_on_device),
-            enabled = enabled,
+            visible = visible,
             preferenceItems = listOf(
                 Preference.PreferenceItem.ListPreference(
                     preference = prefs.textEngine,
@@ -115,7 +115,7 @@ object SettingsTranslationScreen : SearchableSettings {
                         TextEngine.OPENAI_COMPATIBLE to stringResource(MR.strings.translation_text_engine_openai),
                     ),
                     title = stringResource(MR.strings.pref_translation_text_engine),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = prefs.inpaintMode,
@@ -124,19 +124,19 @@ object SettingsTranslationScreen : SearchableSettings {
                         InpaintMode.FLAT_FILL to stringResource(MR.strings.translation_inpaint_flat),
                     ),
                     title = stringResource(MR.strings.pref_translation_inpaint_mode),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = prefs.translateFreeText,
                     title = stringResource(MR.strings.pref_translation_free_text),
                     subtitle = stringResource(MR.strings.pref_translation_free_text_summary),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = prefs.fontScale,
                     entries = listOf(80, 90, 100, 115, 130, 150).associateWith { "$it%" },
                     title = stringResource(MR.strings.pref_translation_font_scale),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.CustomPreference(
                     title = stringResource(MR.strings.pref_translation_models),
@@ -152,49 +152,49 @@ object SettingsTranslationScreen : SearchableSettings {
     }
 
     @Composable
-    private fun serverGroup(prefs: TranslationPreferences, enabled: Boolean): Preference.PreferenceGroup {
+    private fun serverGroup(prefs: TranslationPreferences, visible: Boolean): Preference.PreferenceGroup {
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_translation_server),
-            enabled = enabled,
+            visible = visible,
             preferenceItems = listOf(
                 Preference.PreferenceItem.EditTextPreference(
                     preference = prefs.serverUrl,
                     title = stringResource(MR.strings.pref_translation_server_url),
                     subtitle = stringResource(MR.strings.pref_translation_server_url_summary),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = prefs.serverTranslator,
                     title = stringResource(MR.strings.pref_translation_server_translator),
                     subtitle = stringResource(MR.strings.pref_translation_server_translator_summary),
-                    enabled = enabled,
+                    visible = visible,
                 ),
             ),
         )
     }
 
     @Composable
-    private fun llmGroup(prefs: TranslationPreferences, enabled: Boolean): Preference.PreferenceGroup {
+    private fun llmGroup(prefs: TranslationPreferences, visible: Boolean): Preference.PreferenceGroup {
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_translation_llm),
-            enabled = enabled,
+            visible = visible,
             preferenceItems = listOf(
                 Preference.PreferenceItem.EditTextPreference(
                     preference = prefs.openAiBaseUrl,
                     title = stringResource(MR.strings.pref_translation_openai_url),
                     subtitle = stringResource(MR.strings.pref_translation_openai_url_summary),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = prefs.openAiModel,
                     title = stringResource(MR.strings.pref_translation_openai_model),
-                    enabled = enabled,
+                    visible = visible,
                 ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = prefs.openAiApiKey,
                     title = stringResource(MR.strings.pref_translation_openai_key),
                     subtitle = null,
-                    enabled = enabled,
+                    visible = visible,
                 ),
             ),
         )
