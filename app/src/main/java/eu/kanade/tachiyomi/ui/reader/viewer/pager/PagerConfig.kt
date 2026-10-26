@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
+import android.graphics.Color
+import androidx.annotation.ColorInt
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerConfig
@@ -9,12 +11,12 @@ import eu.kanade.tachiyomi.ui.reader.viewer.navigation.EdgeNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.KindlishNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.RightAndLeftNavigation
+import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
+import mihon.feature.translation.TranslationPreferences
 
 /**
  * Configuration used by pager viewers.
@@ -22,8 +24,9 @@ import uy.kohesive.injekt.api.get
 class PagerConfig(
     private val viewer: PagerViewer,
     scope: CoroutineScope,
-    readerPreferences: ReaderPreferences = Injekt.get(),
-) : ViewerConfig(readerPreferences, scope) {
+    readerPreferences: ReaderPreferences,
+    translationPreferences: TranslationPreferences,
+) : ViewerConfig(readerPreferences, scope, translationPreferences) {
 
     var theme = readerPreferences.readerTheme.get()
         private set
@@ -48,14 +51,43 @@ class PagerConfig(
     var landscapeZoom = false
         private set
 
+    var reloadChapterListener: ((Boolean) -> Unit)? = null
+
+    var shiftDoublePage = readerPreferences.shiftDoublePages.get()
+
+    var doublePages =
+        PageLayout.DOUBLE_PAGES_ENABLED &&
+            readerPreferences.pageLayout.get() == PageLayout.DOUBLE_PAGES &&
+            !readerPreferences.dualPageSplitPaged.get()
+        set(value) {
+            // Double-page (merge) and dual-page-split are mutually exclusive; clamp here so every writer
+            // — including the AUTOMATIC/orientation path — can never enable both at once.
+            field = PageLayout.DOUBLE_PAGES_ENABLED && value && !dualPageSplit
+        }
+
+    var invertDoublePages = false
+
+    var autoDoublePages = readerPreferences.pageLayout.get() == PageLayout.AUTOMATIC
+
+    @ColorInt
+    var pageCanvasColor = Color.WHITE
+
+    var centerMarginType = CenterMarginType.NONE
+
     init {
         readerPreferences.readerTheme
             .register(
                 {
                     theme = it
                     automaticBackground = it == 3
+                    // Letterbox colour behind unequal-height merged spreads; reuse the reader's own bg mapping.
+                    pageCanvasColor = viewer.activity.readerBackgroundColor(it)
                 },
-                { imagePropertyChangedListener?.invoke() },
+                {
+                    imagePropertyChangedListener?.invoke()
+                    // Re-merge only in double-page mode; the colour is baked into each spread.
+                    if (doublePages) reloadChapterListener?.invoke(doublePages)
+                },
             )
 
         readerPreferences.imageScaleType
@@ -87,8 +119,11 @@ class PagerConfig(
             .register(
                 { dualPageSplit = it },
                 {
-                    imagePropertyChangedListener?.invoke()
+                    // Split toggled: recompute double-page eligibility (the setter clamps the exclusion)
+                    // and re-pair in a single pass via reloadChapterListener rather than a second refresh.
+                    doublePages = readerPreferences.pageLayout.get() == PageLayout.DOUBLE_PAGES
                     dualPageSplitChangedListener?.invoke(it)
+                    reloadChapterListener?.invoke(doublePages)
                 },
             )
 
@@ -106,6 +141,27 @@ class PagerConfig(
                 { dualPageRotateToFitInvert = it },
                 { imagePropertyChangedListener?.invoke() },
             )
+
+        readerPreferences.pageLayout
+            .register(
+                {
+                    autoDoublePages = it == PageLayout.AUTOMATIC
+                    if (!autoDoublePages) {
+                        // Exclusion clamp lives in the doublePages setter.
+                        doublePages = it == PageLayout.DOUBLE_PAGES
+                    }
+                },
+                { reloadChapterListener?.invoke(doublePages) },
+            )
+
+        readerPreferences.centerMarginType
+            .register({ centerMarginType = it }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.invertDoublePages
+            .register({ invertDoublePages = it && !dualPageSplit }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.shiftDoublePages
+            .register({ shiftDoublePage = it }, { reloadChapterListener?.invoke(doublePages) })
     }
 
     private fun zoomTypeFromPreference(value: Int) {
@@ -148,5 +204,24 @@ class PagerConfig(
             else -> defaultNavigation()
         }
         navigationModeChangedListener?.invoke()
+    }
+
+    object CenterMarginType {
+        const val NONE = 0
+        const val DOUBLE_PAGE_CENTER_MARGIN = 1
+        const val WIDE_PAGE_CENTER_MARGIN = 2
+        const val DOUBLE_AND_WIDE_CENTER_MARGIN = 3
+    }
+
+    object PageLayout {
+        const val SINGLE_PAGE = 0
+        const val DOUBLE_PAGES = 1
+        const val AUTOMATIC = 2
+
+        /**
+         * Off while evaluating the high quality renderer's dual page view (upstream #3388). Flip back to
+         * `true` to restore double pages in this viewer; nothing else needs to change.
+         */
+        const val DOUBLE_PAGES_ENABLED = false
     }
 }

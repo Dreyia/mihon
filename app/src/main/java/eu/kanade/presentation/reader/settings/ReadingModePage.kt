@@ -14,6 +14,9 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.CheckboxItem
@@ -26,9 +29,15 @@ import java.text.NumberFormat
 
 @Composable
 internal fun ColumnScope.ReadingModePage(viewModel: ReaderSettingsViewModel) {
+    val viewer by viewModel.viewerFlow.collectAsState()
+
+    if (viewer is WebGpuViewer) {
+        WebGpuViewerSettings(viewModel)
+        return
+    }
+
     HeadingItem(MR.strings.pref_category_for_this_series)
     val manga by viewModel.mangaFlow.collectAsState()
-
     val readingMode = remember(manga) { ReadingMode.fromPreference(manga?.readingMode?.toInt()) }
     SettingsChipRow(MR.strings.pref_category_reading_mode) {
         ReadingMode.entries.map {
@@ -51,7 +60,6 @@ internal fun ColumnScope.ReadingModePage(viewModel: ReaderSettingsViewModel) {
         }
     }
 
-    val viewer by viewModel.viewerFlow.collectAsState()
     if (viewer is WebtoonViewer) {
         WebtoonViewerSettings(viewModel)
     } else {
@@ -109,17 +117,68 @@ private fun ColumnScope.PagerViewerSettings(viewModel: ReaderSettingsViewModel) 
         pref = viewModel.preferences.navigateToPan,
     )
 
-    val dualPageSplitPaged by viewModel.preferences.dualPageSplitPaged.collectAsState()
-    CheckboxItem(
-        label = stringResource(MR.strings.pref_dual_page_split),
-        pref = viewModel.preferences.dualPageSplitPaged,
-    )
+    val savedPageLayout by viewModel.preferences.pageLayout.collectAsState()
+    val pageLayout = if (PagerConfig.PageLayout.DOUBLE_PAGES_ENABLED) {
+        savedPageLayout
+    } else {
+        PagerConfig.PageLayout.SINGLE_PAGE
+    }
+    if (PagerConfig.PageLayout.DOUBLE_PAGES_ENABLED) {
+        SettingsChipRow(MR.strings.page_layout) {
+            ReaderPreferences.PageLayouts.mapIndexed { index, labelRes ->
+                FilterChip(
+                    selected = pageLayout == index,
+                    onClick = {
+                        viewModel.preferences.pageLayout.set(index)
+                        // Double-page (merge) and split-wide-pages are mutually exclusive.
+                        if (index != PagerConfig.PageLayout.SINGLE_PAGE) {
+                            viewModel.preferences.dualPageSplitPaged.set(false)
+                        }
+                    },
+                    label = { Text(stringResource(labelRes)) },
+                )
+            }
+        }
+    }
 
-    if (dualPageSplitPaged) {
+    if (pageLayout != PagerConfig.PageLayout.SINGLE_PAGE) {
         CheckboxItem(
-            label = stringResource(MR.strings.pref_dual_page_invert),
-            pref = viewModel.preferences.dualPageInvertPaged,
+            label = stringResource(MR.strings.shift_double_pages),
+            pref = viewModel.preferences.shiftDoublePages,
         )
+
+        CheckboxItem(
+            label = stringResource(MR.strings.invert_double_pages),
+            pref = viewModel.preferences.invertDoublePages,
+        )
+
+        val centerMarginType by viewModel.preferences.centerMarginType.collectAsState()
+        SettingsChipRow(MR.strings.pref_center_margin) {
+            ReaderPreferences.CenterMarginTypes.mapIndexed { index, labelRes ->
+                FilterChip(
+                    selected = centerMarginType == index,
+                    onClick = { viewModel.preferences.centerMarginType.set(index) },
+                    label = { Text(stringResource(labelRes)) },
+                )
+            }
+        }
+    }
+
+    // Split-wide-pages is mutually exclusive with double-page: offer it in single-page mode, and also
+    // when it's already on (e.g. a restored backup) so the user can turn it back off in place.
+    val dualPageSplitPaged by viewModel.preferences.dualPageSplitPaged.collectAsState()
+    if (pageLayout == PagerConfig.PageLayout.SINGLE_PAGE || dualPageSplitPaged) {
+        CheckboxItem(
+            label = stringResource(MR.strings.pref_dual_page_split),
+            pref = viewModel.preferences.dualPageSplitPaged,
+        )
+
+        if (dualPageSplitPaged) {
+            CheckboxItem(
+                label = stringResource(MR.strings.pref_dual_page_invert),
+                pref = viewModel.preferences.dualPageInvertPaged,
+            )
+        }
     }
 
     val dualPageRotateToFit by viewModel.preferences.dualPageRotateToFit.collectAsState()
@@ -205,7 +264,7 @@ private fun ColumnScope.WebtoonViewerSettings(viewModel: ReaderSettingsViewModel
 }
 
 @Composable
-private fun ColumnScope.TapZonesItems(
+internal fun TapZonesItems(
     selected: Int,
     onSelect: (Int) -> Unit,
     invertMode: ReaderPreferences.TappingInvertMode,

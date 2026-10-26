@@ -3,12 +3,20 @@ package eu.kanade.tachiyomi.ui.reader.setting
 import android.os.Build
 import androidx.compose.ui.graphics.BlendMode
 import dev.icerock.moko.resources.StringResource
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
+import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuShader
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuShaders
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 import tachiyomi.core.common.preference.getEnumSet
 import tachiyomi.i18n.MR
 
+@Inject
+@SingleIn(AppScope::class)
 class ReaderPreferences(
     preferenceStore: PreferenceStore,
 ) {
@@ -16,6 +24,11 @@ class ReaderPreferences(
     // region General
 
     val pageTransitions: Preference<Boolean> = preferenceStore.getBoolean("pref_enable_transitions_key", true)
+
+    val loadAheadOnlyOverWifi: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_reader_load_ahead_only_over_wifi",
+        true,
+    )
 
     val flashOnPageChange: Preference<Boolean> = preferenceStore.getBoolean("pref_reader_flash", false)
 
@@ -132,6 +145,24 @@ class ReaderPreferences(
         false,
     )
 
+    // Combine two pages into a single spread (classic paged viewers only).
+    val pageLayout: Preference<Int> = preferenceStore.getInt("page_layout", PagerConfig.PageLayout.AUTOMATIC)
+
+    val invertDoublePages: Preference<Boolean> = preferenceStore.getBoolean("invert_double_pages", false)
+
+    val shiftDoublePages: Preference<Boolean> = preferenceStore.getBoolean("pref_shift_double_pages", false)
+
+    val centerMarginType: Preference<Int> = preferenceStore.getInt(
+        "center_margin_type",
+        PagerConfig.CenterMarginType.NONE,
+    )
+
+    // Dual page view of the high quality (WebGPU) renderer.
+    val dualPageView: Preference<DualPageView> = preferenceStore.getEnum(
+        "pref_dual_page_view",
+        DualPageView.NEVER,
+    )
+
     // endregion
 
     // region Color filter
@@ -189,6 +220,43 @@ class ReaderPreferences(
 
     // endregion
 
+    // region WebGpu
+
+    val transitionAnimation: Preference<TransitionAnimation> =
+        preferenceStore.getEnum("webgpu_transition_animation", TransitionAnimation.BASIC)
+
+    val transitionAnimationDual: Preference<TransitionAnimation> =
+        preferenceStore.getEnum("webgpu_dual_transition_animation", TransitionAnimation.BASIC)
+
+    val cutoutMode: Preference<CutoutMode> = preferenceStore.getEnum("webgpu_cutout_mode", CutoutMode.AVOID)
+
+    val cutoutModeDual: Preference<CutoutMode> = preferenceStore.getEnum("webgpu_dual_cutout_mode", CutoutMode.IGNORE)
+
+    val continuousMinWidth: Preference<Int> = preferenceStore.getInt("webgpu_continuous_minwidth", 100)
+
+    val continuousGap: Preference<Int> = preferenceStore.getInt("webgpu_continuous_gap", 10)
+
+    val disableDoubleTapGestures: Preference<Boolean> =
+        preferenceStore.getBoolean("webgpu_disable_double_tap_gestures", false)
+
+    /** In run order. */
+    val imageFilters: Preference<List<WebGpuShader>> = preferenceStore.getObjectFromString(
+        "webgpu_image_filters",
+        emptyList(),
+        WebGpuShaders::serialize,
+        WebGpuShaders::deserialize,
+    )
+
+    /** In run order. */
+    val tileFilters: Preference<List<WebGpuShader>> = preferenceStore.getObjectFromString(
+        "webgpu_tile_filters",
+        emptyList(),
+        WebGpuShaders::serialize,
+        WebGpuShaders::deserialize,
+    )
+
+    // endregion
+
     enum class FlashColor {
         BLACK,
         WHITE,
@@ -201,8 +269,14 @@ class ReaderPreferences(
         val shouldInvertVertical: Boolean = false,
     ) {
         NONE(MR.strings.tapping_inverted_none),
-        HORIZONTAL(MR.strings.tapping_inverted_horizontal, shouldInvertHorizontal = true),
-        VERTICAL(MR.strings.tapping_inverted_vertical, shouldInvertVertical = true),
+        HORIZONTAL(
+            MR.strings.tapping_inverted_horizontal,
+            shouldInvertHorizontal = true,
+        ),
+        VERTICAL(
+            MR.strings.tapping_inverted_vertical,
+            shouldInvertVertical = true,
+        ),
         BOTH(MR.strings.tapping_inverted_both, shouldInvertHorizontal = true, shouldInvertVertical = true),
     }
 
@@ -211,6 +285,43 @@ class ReaderPreferences(
         HIGH(13),
         LOW(31),
         LOWEST(47),
+    }
+
+    enum class TransitionAnimation(val titleRes: StringResource) {
+        BASIC(MR.strings.transition_animation_basic),
+        FLIP(MR.strings.transition_animation_flip),
+        FLIP_LEFT(MR.strings.transition_animation_flip_left),
+        FLIP_RIGHT(
+            MR.strings.transition_animation_flip_right,
+        ),
+        STACK_LEFT(MR.strings.transition_animation_stack_left),
+        STACK_RIGHT(MR.strings.transition_animation_stack_right),
+        STACK_UP(
+            MR.strings.transition_animation_stack_up,
+        ),
+        STACK_DOWN(MR.strings.transition_animation_stack_down),
+        SPHERE(MR.strings.transition_animation_sphere),
+        CUBE_INSIDE(
+            MR.strings.transition_animation_cube_inside,
+        ),
+        CUBE_OUTSIDE(MR.strings.transition_animation_cube_outside),
+        FADE(MR.strings.transition_animation_fade),
+        FADE_WHITE(
+            MR.strings.transition_animation_fade_white,
+        ),
+        NONE(MR.strings.transition_animation_none),
+    }
+
+    enum class CutoutMode(val titleRes: StringResource) {
+        IGNORE(MR.strings.cutout_mode_ignore),
+        AVOID(MR.strings.cutout_mode_avoid),
+        SHIFT(MR.strings.cutout_mode_shift),
+    }
+
+    enum class DualPageView(val titleRes: StringResource) {
+        NEVER(MR.strings.dual_page_view_never),
+        ALWAYS(MR.strings.dual_page_view_always),
+        WIDE(MR.strings.dual_page_view_wide),
     }
 
     companion object {
@@ -237,11 +348,31 @@ class ReaderPreferences(
             MR.strings.scale_type_smart_fit,
         )
 
+        val ImageScaleTypeWebGpuViewer = listOf(
+            MR.strings.scale_type_fit_screen,
+            MR.strings.scale_type_fit_width,
+            MR.strings.scale_type_fit_height,
+            MR.strings.scale_type_original_size,
+        )
+
         val ZoomStart = listOf(
             MR.strings.zoom_start_automatic,
             MR.strings.zoom_start_left,
             MR.strings.zoom_start_right,
             MR.strings.zoom_start_center,
+        )
+
+        val PageLayouts = listOf(
+            MR.strings.single_page,
+            MR.strings.double_pages,
+            MR.strings.automatic_orientation,
+        )
+
+        val CenterMarginTypes = listOf(
+            MR.strings.center_margin_none,
+            MR.strings.center_margin_double_page,
+            MR.strings.center_margin_wide_page,
+            MR.strings.center_margin_double_and_wide_page,
         )
 
         val ColorFilterMode = buildList {
