@@ -15,7 +15,7 @@ import java.nio.LongBuffer
  * Small helpers around ONNX Runtime so the model wrappers stay readable.
  */
 object Ort {
-    val env: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
+    val env: OrtEnvironment by lazy { OrtEnvironment.getEnvironment().apply { setTelemetry(false) } }
 
     fun createSession(model: File, threads: Int = defaultThreads()): OrtSession {
         val options = OrtSession.SessionOptions().apply {
